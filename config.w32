@@ -1,0 +1,7 @@
+ARG_ENABLE('nativenc', 'nativenc support', 'no');
+
+if (PHP_NATIVENC != 'no') {
+	AC_DEFINE('HAVE_NATIVENC', 1, 'nativenc support enabled');
+
+	EXTENSION('nativenc', 'nativenc.c', 'mtrandom.c', null, '/DZEND_ENABLE_STATIC_TSRMLS_CACHE=1');
+}

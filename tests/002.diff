@@ -1,0 +1,6 @@
+001+ Fatal error: Uncaught Error: Call to undefined function test1() in /home/gh/php-bin/nativenc/tests/002.php:2
+002+ Stack trace:
+001- The extension nativenc is loaded and working!
+002- NULL
+003+ #0 {main}
+004+   thrown in /home/gh/php-bin/nativenc/tests/002.php on line 2

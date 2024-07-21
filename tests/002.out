@@ -1,0 +1,4 @@
+Fatal error: Uncaught Error: Call to undefined function test1() in /home/gh/php-bin/nativenc/tests/002.php:2
+Stack trace:
+#0 {main}
+  thrown in /home/gh/php-bin/nativenc/tests/002.php on line 2
