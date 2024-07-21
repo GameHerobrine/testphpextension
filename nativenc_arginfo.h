@@ -3,7 +3,7 @@
 
 
 
-static const zend_function_entry ext_functions[] = {
-	
-	ZEND_FE_END
-};
+//static const zend_function_entry ext_functions[] = {
+//	
+//	ZEND_FE_END
+//};
