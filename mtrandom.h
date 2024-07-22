@@ -1,4 +1,12 @@
+#ifndef _MTRANDOM_H
+#define _MTRANDOM_H
+
+#include "random.h"
+
+extern random_vt mtrandom_vt;
+
 typedef struct _mtrandom_t{
+	random_t rand;
 	int seed;
 	unsigned int mt[624];
 	int index;
@@ -13,3 +21,4 @@ int mtrandom_nextIntUnbounded(mtrandom_t* r);
 int mtrandom_nextInt(mtrandom_t* r, int bound);
 float mtrandom_nextFloat(mtrandom_t* r);
 
+#endif

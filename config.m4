@@ -90,5 +90,5 @@ if test "$PHP_NATIVENC" != "no"; then
   dnl In case of no dependencies
   AC_DEFINE(HAVE_NATIVENC, 1, [ Have nativenc support ])
 
-  PHP_NEW_EXTENSION(nativenc, mtrandom.c nativenc.c, $ext_shared)
+  PHP_NEW_EXTENSION(nativenc, mtrandom.c noise.c nativenc.c, $ext_shared)
 fi

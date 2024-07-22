@@ -1,0 +1,3 @@
+noise.lo: /home/gh/php-bin/nativenc/noise.c \
+ /home/gh/php-bin/nativenc/noise.h /home/gh/php-bin/nativenc/random.h \
+ /home/gh/php-bin/nativenc/mtrandom.h

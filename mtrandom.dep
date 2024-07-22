@@ -1,0 +1,2 @@
+mtrandom.lo: /home/gh/php-bin/nativenc/mtrandom.c \
+ /home/gh/php-bin/nativenc/mtrandom.h /home/gh/php-bin/nativenc/random.h

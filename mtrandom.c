@@ -1,9 +1,19 @@
 #include "mtrandom.h"
+#include "random.h"
+
+
+random_vt mtrandom_vt = {
+	mtrandom_nextFloat,
+	mtrandom_nextInt
+};
+
 void mtrandom_create(mtrandom_t* r, int seed){
+	r->rand.vt = &mtrandom_vt;
 	mtrandom_setSeed(r, seed);
 }
 void mtrandom_setSeed(mtrandom_t* r, int seed){
 	r->mt[0] = seed;
+	r->seed = seed;
 	for(r->index = 1; r->index < 624; ++r->index){
 		r->mt[r->index] = 0x6c078965 * (r->mt[r->index-1] >> 30 ^ r->mt[r->index-1]) + r->index;
 	}

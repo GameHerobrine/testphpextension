@@ -1,6 +1,7 @@
 /* nativenc extension for PHP */
 
 #include "mtrandom.h"
+#include "noise.h"
 
 #ifdef HAVE_CONFIG_H
 # include "config.h"
@@ -20,6 +21,7 @@
 
 static zend_object_handlers mtrandom_object_handlers;
 static zend_object_handlers bytearray_object_handlers;
+static zend_object_handlers perlin_object_handlers;
 
 typedef struct _z_mtrandom_t {
 	mtrandom_t native;
@@ -32,24 +34,38 @@ typedef struct _z_bytearray_t{
 	zend_object std;
 } z_bytearray_t;
 
+typedef struct _z_perlin_t{
+	perlin_t perlin;
+	zend_object std;
+} z_perlin_t;
+
 #define GET_NMTRANDOM(zv) ((z_mtrandom_t*)((char*)(Z_OBJ_P(zv)) - XtOffsetOf(z_mtrandom_t, std)))
 #define GET_BYTEARRAY(zv) ((z_bytearray_t*)((char*)(Z_OBJ_P(zv)) - XtOffsetOf(z_bytearray_t, std)))
+#define GET_PERLIN(zv) ((z_perlin_t*)((char*)(Z_OBJ_P(zv)) - XtOffsetOf(z_perlin_t, std)))
 
 #define GETOFFSET(obj, dt) ((dt*)((char*)obj - XtOffsetOf(dt, std)))
 
-zend_object *mtrandom_new(zend_class_entry *ce){
+zend_object* mtrandom_new(zend_class_entry *ce){
 	z_mtrandom_t *mtr = zend_object_alloc(sizeof(z_mtrandom_t), ce);
 	zend_object_std_init(&mtr->std, ce);
 	mtr->std.handlers = &mtrandom_object_handlers;
 	return &mtr->std;
 }
 
-zend_object *bytearray_new(zend_class_entry *ce){
+zend_object* bytearray_new(zend_class_entry *ce){
 	z_bytearray_t *mtr = zend_object_alloc(sizeof(z_bytearray_t), ce);
 	zend_object_std_init(&mtr->std, ce);
 	mtr->std.handlers = &bytearray_object_handlers;
 	return &mtr->std;
 }
+
+zend_object* perlin_new(zend_class_entry* ce){
+	z_perlin_t *mtr = zend_object_alloc(sizeof(z_perlin_t), ce);
+	zend_object_std_init(&mtr->std, ce);
+	mtr->std.handlers = &perlin_object_handlers;
+	return &mtr->std;
+}
+
 void bytearray_free(zend_object* obj){
 	z_bytearray_t* ptr = GETOFFSET(obj, z_bytearray_t);
 	free(ptr->arr);
@@ -82,7 +98,7 @@ zval* bytearray_read_dimension(zend_object *obj, zval *offset, int type, zval *r
 }
 
 static zend_class_entry* bytearray_class_entry = NULL;
-PHP_METHOD(Bytearray, __construct){
+PHP_METHOD(nBytearray, __construct){
 	z_bytearray_t* arr = GET_BYTEARRAY(ZEND_THIS);
 	zend_long count;
 
@@ -94,7 +110,7 @@ PHP_METHOD(Bytearray, __construct){
 	arr->arr = malloc(count);
 }
 
-PHP_METHOD(Bytearray, fill){
+PHP_METHOD(nBytearray, fill){
 	z_bytearray_t* arr = GET_BYTEARRAY(ZEND_THIS);
 	zend_long value;
 	zend_long count;
@@ -119,8 +135,8 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_bytearray_fill, 0, 0, 1)
 ZEND_END_ARG_INFO()
 
 static const zend_function_entry bytearray_functions[] = {
-	PHP_ME(Bytearray, __construct, arginfo_bytearray_construct, ZEND_ACC_PUBLIC)
-	PHP_ME(Bytearray, fill, arginfo_bytearray_fill, ZEND_ACC_PUBLIC)
+	PHP_ME(nBytearray, __construct, arginfo_bytearray_construct, ZEND_ACC_PUBLIC)
+	PHP_ME(nBytearray, fill, arginfo_bytearray_fill, ZEND_ACC_PUBLIC)
 	PHP_FE_END
 };
 
@@ -164,6 +180,7 @@ PHP_METHOD(MTRandom, nextInt){
 
 	RETURN_LONG(num);
 }
+
 PHP_METHOD(MTRandom, nextFloat){
 	z_mtrandom_t *random = GET_NMTRANDOM(ZEND_THIS);
 	float num;
@@ -171,7 +188,22 @@ PHP_METHOD(MTRandom, nextFloat){
 	RETURN_DOUBLE(num);
 }
 
+PHP_METHOD(MTRandom, setSeed){
+	z_mtrandom_t *random = GET_NMTRANDOM(ZEND_THIS);
+	zend_long seed;
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_LONG(seed)
+	ZEND_PARSE_PARAMETERS_END();
+
+	mtrandom_setSeed(&random->native, seed & 0xffffffff);
+}
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_mtrandom_construct, 0, 0, 0)
+	ZEND_ARG_INFO(0, seed)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_mtrandom_setSeed, 0, 0, 1)
 	ZEND_ARG_INFO(0, seed)
 ZEND_END_ARG_INFO()
 
@@ -190,10 +222,157 @@ static const zend_function_entry mtrandom_functions[] = {
 	PHP_ME(MTRandom, genRandInt, arginfo_mtrandom_genRandInt, ZEND_ACC_PUBLIC)
 	PHP_ME(MTRandom, nextInt, arginfo_mtrandom_nextInt, ZEND_ACC_PUBLIC)
 	PHP_ME(MTRandom, nextFloat, arginfo_mtrandom_nextFloat, ZEND_ACC_PUBLIC)
+	PHP_ME(MTRandom, setSeed, arginfo_mtrandom_setSeed, ZEND_ACC_PUBLIC)
 	PHP_FE_END
 };
 
 
+
+
+static zend_class_entry* perlin_class_entry = NULL;
+
+PHP_METHOD(NoiseGeneratorPerlin, __construct){
+	z_perlin_t *perlin = GET_PERLIN(ZEND_THIS);
+	zval* random;
+	zend_long octaves;
+
+	ZEND_PARSE_PARAMETERS_START(2, 2)
+		Z_PARAM_OBJECT(random)
+		Z_PARAM_LONG(octaves)
+	ZEND_PARSE_PARAMETERS_END();
+	
+	if(Z_TYPE_P(random) == IS_OBJECT){
+		zend_object* b = random->value.obj;
+		zend_class_entry* entr = b->ce;
+		zend_string* name = entr->name;
+		zend_string* nm = zend_string_init("MTRandom", sizeof("MTRandom")-1, 0);
+		
+		if(zend_string_equals(name, nm)){ //bad way
+			z_mtrandom_t* randomm = GETOFFSET(b, z_mtrandom_t);
+			
+			perlin_create(&perlin->perlin, &randomm->native, octaves);
+		}
+		//for(size_t i = 0; i < name->len; ++i){
+		//	printf("%c", *(name->val+i));
+		//}
+		//php_printf("STRING: value=\"");
+		//PHPWRITE(Z_STRVAL_P(random), Z_STRLEN_P(random));
+		zend_string_release(nm);
+	}
+	
+	//mtrandom_create(&random->native, seed & 0xffffffff);
+}
+
+PHP_METHOD(NoiseGeneratorPerlin, getNoise3D){
+	z_perlin_t* perlin = GET_PERLIN(ZEND_THIS);
+	double x;
+	double y;
+	double z;
+	
+	ZEND_PARSE_PARAMETERS_START(3, 3)
+		Z_PARAM_DOUBLE(x)
+		Z_PARAM_DOUBLE(y)
+		Z_PARAM_DOUBLE(z)
+	ZEND_PARSE_PARAMETERS_END();
+
+	float f = perlin_getNoise3D(&perlin->perlin, x, y, z);
+	RETURN_DOUBLE(f);
+}
+
+PHP_METHOD(NoiseGeneratorPerlin, getNoise2D){
+	z_perlin_t* perlin = GET_PERLIN(ZEND_THIS);
+	double x;
+	double y;
+	
+	ZEND_PARSE_PARAMETERS_START(2, 2)
+		Z_PARAM_DOUBLE(x)
+		Z_PARAM_DOUBLE(y)
+	ZEND_PARSE_PARAMETERS_END();
+
+	float f = perlin_getNoise2D(&perlin->perlin, x, y);
+	RETURN_DOUBLE(f);
+}
+
+
+PHP_METHOD(NoiseGeneratorPerlin, noise2D){
+	z_perlin_t* perlin = GET_PERLIN(ZEND_THIS);
+	double x;
+	double y;
+	double freq;
+	double amp;
+	ZEND_PARSE_PARAMETERS_START(4, 4)
+		Z_PARAM_DOUBLE(x)
+		Z_PARAM_DOUBLE(y)
+		Z_PARAM_DOUBLE(freq)
+		Z_PARAM_DOUBLE(amp)
+		//XXX also has normalized but whatever
+	ZEND_PARSE_PARAMETERS_END();
+
+	float f = noise_noise2D(&perlin->perlin, x, y, freq, amp);
+	RETURN_DOUBLE(f);
+}
+
+PHP_METHOD(NoiseGeneratorPerlin, noise3D){
+	z_perlin_t* perlin = GET_PERLIN(ZEND_THIS);
+	double x;
+	double y;
+	double z;
+	double freq;
+	double amp;
+	ZEND_PARSE_PARAMETERS_START(5, 5)
+		Z_PARAM_DOUBLE(x)
+		Z_PARAM_DOUBLE(y)
+		Z_PARAM_DOUBLE(z)
+		Z_PARAM_DOUBLE(freq)
+		Z_PARAM_DOUBLE(amp)
+		//XXX also has normalized but whatever
+	ZEND_PARSE_PARAMETERS_END();
+
+	float f = noise_noise3D(&perlin->perlin, x, y, z, freq, amp);
+	RETURN_DOUBLE(f);
+}
+
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_perlin_construct, 0, 0, 2)
+	ZEND_ARG_INFO(0, random)
+	ZEND_ARG_INFO(0, octaves)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_perlin_getNoise3D, 0, 0, 3)
+	ZEND_ARG_INFO(0, x)
+	ZEND_ARG_INFO(0, y)
+	ZEND_ARG_INFO(0, z)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_perlin_getNoise2D, 0, 0, 2)
+	ZEND_ARG_INFO(0, x)
+	ZEND_ARG_INFO(0, y)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_perlin_noise3D, 0, 0, 5)
+	ZEND_ARG_INFO(0, x)
+	ZEND_ARG_INFO(0, y)
+	ZEND_ARG_INFO(0, z)
+	ZEND_ARG_INFO(0, freq)
+	ZEND_ARG_INFO(0, amp)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_perlin_noise2D, 0, 0, 4)
+	ZEND_ARG_INFO(0, x)
+	ZEND_ARG_INFO(0, y)
+	ZEND_ARG_INFO(0, freq)
+	ZEND_ARG_INFO(0, amp)
+ZEND_END_ARG_INFO()
+
+
+static const zend_function_entry perlin_functions[] = {
+	PHP_ME(NoiseGeneratorPerlin, __construct, arginfo_perlin_construct, ZEND_ACC_PUBLIC)
+	PHP_ME(NoiseGeneratorPerlin, getNoise3D, arginfo_perlin_getNoise3D, ZEND_ACC_PUBLIC)
+	PHP_ME(NoiseGeneratorPerlin, getNoise2D, arginfo_perlin_getNoise2D, ZEND_ACC_PUBLIC)
+	PHP_ME(NoiseGeneratorPerlin, noise2D, arginfo_perlin_noise2D, ZEND_ACC_PUBLIC)
+	PHP_ME(NoiseGeneratorPerlin, noise3D, arginfo_perlin_noise3D, ZEND_ACC_PUBLIC)
+	PHP_FE_END
+};
 
 
 
@@ -298,7 +477,15 @@ PHP_MINIT_FUNCTION(nativenc)
 	mtrandom_object_handlers.offset = XtOffsetOf(z_mtrandom_t, std);
 	
 	
-	INIT_CLASS_ENTRY(ce, "Bytearray", bytearray_functions);
+	INIT_CLASS_ENTRY(ce, "NoiseGeneratorPerlin", perlin_functions);
+	perlin_class_entry = zend_register_internal_class(&ce);
+	perlin_class_entry->create_object = perlin_new;
+
+	memcpy(&perlin_object_handlers, &std_object_handlers, sizeof(zend_object_handlers));
+	perlin_object_handlers.offset = XtOffsetOf(z_perlin_t, std);
+	
+	
+	INIT_CLASS_ENTRY(ce, "nBytearray", bytearray_functions);
 	bytearray_class_entry = zend_register_internal_class(&ce);
 	bytearray_class_entry->create_object = bytearray_new;
 
